@@ -24,13 +24,13 @@ Its a made with Flask framework...follow SETUP STPES to locally run it on your m
 Clone the project
 
 ```bash
-  git clone https://github.com/jiten0709/dermalyseAPI.git
+  git clone https://github.com/jiten0709/DermalyseAPI.git
 ```
 
 Go to the project directory
 
 ```bash
-  cd dermalyseAPI
+  cd DermalyseAPI
 ```
 
 Create a VirtualEnv
