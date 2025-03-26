@@ -5,12 +5,6 @@ Its a made with Flask framework...follow SETUP STPES to locally run it on your m
 
 ## API Reference
 
-#### Its hosted on zeet.co
-
-```http
-  LINK
-```
-
 #### Send image as payload
 
 ```http
