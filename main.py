@@ -4,13 +4,14 @@ import numpy as np
 from PIL import Image as image
 from io import BytesIO
 import base64
-# from tensorflow.keras.preprocessing import image as keras_image
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  
 
 
 app = Flask(__name__)
 
 # Load your model
-model = tf.keras.models.load_model('new_xception_model.keras', compile=False)
+model = tf.keras.models.load_model('xception_model_89acc.keras', compile=False)
 
 class_labels = {
     'Acne': 0,
@@ -80,7 +81,7 @@ def predict():
 @app.route('/test', methods=['GET'])
 def test():
     # Open the image file
-    with open('test_img.jpg', 'rb') as image_file:
+    with open('test.jpg', 'rb') as image_file:
         # Convert the file stream to bytes
         image_bytes = image_file.read()
     

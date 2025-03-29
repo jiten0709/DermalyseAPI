@@ -3,3 +3,5 @@ my_venv
 
 # Other
 .DS_Store
+
+new_xception_model.keras
