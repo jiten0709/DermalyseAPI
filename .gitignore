@@ -4,4 +4,5 @@ my_venv
 # Other
 .DS_Store
 
-new_xception_model.keras
+# new_xception_model.keras
+xception_model_89acc.keras
