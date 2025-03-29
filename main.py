@@ -4,7 +4,6 @@ import numpy as np
 from PIL import Image as image
 from io import BytesIO
 import base64
-# from tensorflow.keras.preprocessing import image as keras_image
 
 
 app = Flask(__name__)
@@ -80,7 +79,7 @@ def predict():
 @app.route('/test', methods=['GET'])
 def test():
     # Open the image file
-    with open('test_img.jpg', 'rb') as image_file:
+    with open('test-images/vascular.jpg', 'rb') as image_file:
         # Convert the file stream to bytes
         image_bytes = image_file.read()
     
