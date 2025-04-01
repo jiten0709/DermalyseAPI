@@ -3,3 +3,6 @@ my_venv
 
 # Other
 .DS_Store
+
+# files
+.env 
