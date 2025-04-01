@@ -8,3 +8,4 @@ my_venv
 .env 
 NOTES.md
 dir_structure.txt
+d.*

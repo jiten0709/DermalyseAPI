@@ -9,7 +9,7 @@ import base64
 app = Flask(__name__)
 
 # Load your model
-model = tf.keras.models.load_model('new_xception_model.keras', compile=False)
+model = tf.keras.models.load_model('app/assets/machineLearningModel/new_xception_model.keras', compile=False)
 
 class_labels = {
     'Acne': 0,
@@ -79,7 +79,7 @@ def predict():
 @app.route('/test', methods=['GET'])
 def test():
     # Open the image file
-    with open('test-images/vascular.jpg', 'rb') as image_file:
+    with open('app/assets/test-images/vascular.jpg', 'rb') as image_file:
         # Convert the file stream to bytes
         image_bytes = image_file.read()
     
@@ -117,4 +117,4 @@ def test():
     return jsonify(top3_predictions)
 
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=5001)
+    app.run(debug=True, host='0.0.0.0', port=5001)

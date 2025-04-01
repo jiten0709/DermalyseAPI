@@ -10,6 +10,8 @@ class Config:
     port = os.getenv("POSTGRES_PORT")
     db = os.getenv("POSTGRES_DB")
 
+    print(f"username: {username}")
+
     SQLALCHEMY_DATABASE_URI = f"postgresql://{username}:{password}@{host}:{port}/{db}"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
