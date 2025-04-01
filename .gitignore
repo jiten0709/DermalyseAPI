@@ -6,3 +6,6 @@ my_venv
 
 # new_xception_model.keras
 xception_model_89acc.keras
+
+# my files
+.env
