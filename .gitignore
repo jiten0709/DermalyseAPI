@@ -4,5 +4,7 @@ my_venv
 # Other
 .DS_Store
 
-# files
+# my files
 .env 
+NOTES.md
+dir_structure.txt
