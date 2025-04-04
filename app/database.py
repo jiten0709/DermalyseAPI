@@ -10,6 +10,6 @@ def init_db(app: Flask):
     db.init_app(app)
     
     with app.app_context():
-        db.create_all()  # Creates tables if they don't exist
+        db.create_all()
 
     return db

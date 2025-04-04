@@ -1,6 +1,5 @@
-from flask_sqlalchemy import SQLAlchemy
+from .database import db
 
-db = SQLAlchemy()
 
 class Doctor(db.Model):
     __tablename__ = 'doctor'
@@ -12,6 +11,7 @@ class Doctor(db.Model):
 
     def __repr__(self):
         return f"<Doctor {self.name}, Specialization: {self.specialization}>"
+
 
 class Patient(db.Model):
     __tablename__ = 'patient'

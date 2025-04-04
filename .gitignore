@@ -3,6 +3,9 @@ my_venv
 
 # Other
 .DS_Store
+__pycache__/
+migrations/versions/*.pyc
+migrations/__pycache__/
 
 # my files
 .env 

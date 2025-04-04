@@ -1,10 +1,12 @@
-from flask import Blueprint, jsonify, request
-from .models import db, Doctor, Patient
+from flask import Blueprint, jsonify, request, current_app
+from .models import Doctor, Patient
+from .database import db
 import tensorflow as tf
 import numpy as np
 from PIL import Image as image
 from io import BytesIO
 import base64
+
 
 api_bp = Blueprint("api", __name__)
 
@@ -15,7 +17,7 @@ def hello():
 
 
 # Load your model
-model = tf.keras.models.load_model('assets/machineLearningModel/new_xception_model.keras', compile=False)
+model = tf.keras.models.load_model('app/assets/machineLearningModel/new_xception_model.keras', compile=False)
 
 class_labels = {
     'Acne': 0,
@@ -90,47 +92,6 @@ def predict():
     return jsonify(top3_predictions)
 
 
-@api_bp.route('/test', methods=['GET'])
-def test():
-    # Open the image file
-    with open('assets/test-images/vascular.jpg', 'rb') as image_file:
-        # Convert the file stream to bytes
-        image_bytes = image_file.read()
-    
-    # Convert the bytes to a PIL Image object
-    img = image.open(BytesIO(image_bytes))
-    # Resize the image to the target size
-    img = img.resize((299, 299))
-    # Convert the image to a NumPy array
-    img_array = tf.keras.preprocessing.image.img_to_array(img)
-
-    img_array = np.expand_dims(img_array, axis=0) / 255.
-
-    # Assuming model is already loaded
-    predictions = model.predict(img_array)
-    instance_predictions = predictions[0]
-    flattened_predictions = instance_predictions.flatten()
-    sorted_indices = np.argsort(flattened_predictions)[::-1]
-
-    # Initialize an empty list to store the sorted predictions
-    sorted_predictions = []
-
-    for index in sorted_indices:
-        class_name = list(class_labels.keys())[index]
-        # Convert float32 to float, multiply by 100 to get percentage, and round to 2 decimal places
-        probability = round(float(flattened_predictions[index]) * 100, 2)
-        # Store the class name and probability as a tuple
-        if probability > 30:
-            sorted_predictions.append((class_name, probability))
-    
-    # Convert the list of tuples into a dictionary
-    top3_predictions = dict(sorted_predictions[:3])
-
-    print(top3_predictions)
-
-    return jsonify(top3_predictions)
-
-
 @api_bp.route("/doctors", methods=["GET"])
 def get_doctors():
     doctors = Doctor.query.all()
@@ -177,3 +138,72 @@ def add_patient():
         db.session.rollback()
         return jsonify({"error": str(e)}), 400
     
+
+@api_bp.route('/test-pred', methods=['GET'])
+def test_pred():
+    # Open the image file
+    with open('app/assets/test-images/vascular.jpg', 'rb') as image_file:
+        # Convert the file stream to bytes
+        image_bytes = image_file.read()
+    
+    # Convert the bytes to a PIL Image object
+    img = image.open(BytesIO(image_bytes))
+    # Resize the image to the target size
+    img = img.resize((299, 299))
+    # Convert the image to a NumPy array
+    img_array = tf.keras.preprocessing.image.img_to_array(img)
+
+    img_array = np.expand_dims(img_array, axis=0) / 255.
+
+    # Assuming model is already loaded
+    predictions = model.predict(img_array)
+    instance_predictions = predictions[0]
+    flattened_predictions = instance_predictions.flatten()
+    sorted_indices = np.argsort(flattened_predictions)[::-1]
+
+    # Initialize an empty list to store the sorted predictions
+    sorted_predictions = []
+
+    for index in sorted_indices:
+        class_name = list(class_labels.keys())[index]
+        # Convert float32 to float, multiply by 100 to get percentage, and round to 2 decimal places
+        probability = round(float(flattened_predictions[index]) * 100, 2)
+        # Store the class name and probability as a tuple
+        if probability > 30:
+            sorted_predictions.append((class_name, probability))
+    
+    # Convert the list of tuples into a dictionary
+    top3_predictions = dict(sorted_predictions[:3])
+
+    print(top3_predictions)
+
+    return jsonify(top3_predictions)
+
+
+@api_bp.route('/test-db', methods=['GET'])
+def test_db():
+    try:
+        with current_app.app_context():  # Ensure the app context is active
+            # Fetch all doctors
+            doctors = Doctor.query.all()
+            doctor_data = [
+                {
+                    "id": doctor.id,
+                    "name": doctor.name,
+                    "specialization": doctor.specialization,
+                    "patients": [
+                        {
+                            "id": patient.id,
+                            "name": patient.name,
+                            "disease_name": patient.disease_name,
+                            "disease_score": patient.disease_score
+                        }
+                        for patient in doctor.patients
+                    ]
+                }
+                for doctor in doctors
+            ]
+
+            return jsonify({"doctors": doctor_data}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
