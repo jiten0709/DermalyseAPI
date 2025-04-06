@@ -54,7 +54,7 @@ Install dependencies
 Start the server
 
 ```bash
-  python3 main.py
+  python3 run.py
 ```
 
 ## Connect with NGROK
