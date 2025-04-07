@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, current_app
-from .models import Doctor, Patient
+from .models import Doctor, Patient, AnalysisResult
 from .database import db
 import tensorflow as tf
 import numpy as np
@@ -73,7 +73,10 @@ def predict_for_doctor():
 @api_bp.route("/patients/predict", methods=["POST"])
 def predict_for_patient():
     data = request.get_json()
+    print(f"Received data: {data}")  # Debug log
+
     if 'image' not in data or 'name' not in data or 'doctor_id' not in data:
+        print("Missing required fields")  # Debug log
         return jsonify({'error': 'Missing required fields: image, name, or doctor_id'}), 400
 
     try:
@@ -83,6 +86,7 @@ def predict_for_patient():
         img = img.resize((299, 299))
         img_array = tf.keras.preprocessing.image.img_to_array(img)
     except Exception as e:
+        print(f"Invalid image data: {str(e)}")  # Debug log
         return jsonify({'error': f'Invalid image data: {str(e)}'}), 400
 
     img_array = np.expand_dims(img_array, axis=0) / 255.
@@ -101,28 +105,28 @@ def predict_for_patient():
             sorted_predictions.append((class_name, probability))
 
     top3_predictions = dict(sorted_predictions[:3])
+    print(f"Top 3 predictions: {top3_predictions}")  # Debug log
 
-    # Save the top prediction to the database
+    # Save the top prediction to the AnalysisResult table
     try:
         patient = Patient.query.filter_by(name=data['name']).first()
         if not patient:
-            patient = Patient(
-                name=data['name'],
-                doctor_id=data['doctor_id'],
-                disease_name=list(top3_predictions.keys())[0],  # Top prediction
-                disease_image=data['image'],  # Store Base64 image
-                disease_score=list(top3_predictions.values())[0]  # Top prediction score
-            )
-            db.session.add(patient)
-        else:
-            # Update existing patient record
-            patient.disease_name = list(top3_predictions.keys())[0]
-            patient.disease_image = data['image']
-            patient.disease_score = list(top3_predictions.values())[0]
+            print("Patient not found")  # Debug log
+            return jsonify({'error': 'Patient not found'}), 404
 
+        analysis_result = AnalysisResult(
+            patient_id=patient.id,
+            doctor_id=data['doctor_id'],
+            disease_name=list(top3_predictions.keys())[0],  # Top prediction
+            disease_image=data['image'],  # Store Base64 image
+            disease_score=list(top3_predictions.values())[0]  # Top prediction score
+        )
+        db.session.add(analysis_result)
         db.session.commit()
+        print("Analysis result saved successfully")  # Debug log
     except Exception as e:
         db.session.rollback()
+        print(f"Error saving analysis result: {str(e)}")  # Debug log
         return jsonify({'error': str(e)}), 500
 
     return jsonify(top3_predictions)
@@ -136,12 +140,18 @@ def signup():
         return jsonify({"error": "Missing required fields"}), 400
 
     try:
+        # Check if the email is already registered
+        existing_user = Doctor.query.filter_by(email=data["email"]).first() or Patient.query.filter_by(email=data["email"]).first()
+        if existing_user:
+            return jsonify({"error": "Email is already registered"}), 400
+
         if data["role"] == "Doctor":
             # Ensure specialization is provided for doctors
             specialization = data.get("specialization", "")
             if not specialization:
                 return jsonify({"error": "Specialization is required for doctors"}), 400
 
+            # Create a new doctor
             doctor = Doctor(
                 name=data["name"],
                 email=data["email"],
@@ -149,22 +159,31 @@ def signup():
                 specialization=specialization  # Use the provided specialization
             )
             db.session.add(doctor)
+            db.session.commit()  # Commit to generate the ID
+            return jsonify({
+                "message": "Doctor registered successfully",
+                "id": doctor.id,  # Return the ID of the newly created doctor
+                "role": "Doctor"
+            }), 201
+
         elif data["role"] == "Patient":
+            # Create a new patient
             patient = Patient(
                 name=data["name"],
                 email=data["email"],
                 password=data["password"],  # Include the password field
-                doctor_id=None,  # Can be assigned later
-                disease_name="",
-                disease_image="",
-                disease_score=0.0
             )
             db.session.add(patient)
+            db.session.commit()  # Commit to generate the ID
+            return jsonify({
+                "message": "Patient registered successfully",
+                "id": patient.id,  # Return the ID of the newly created patient
+                "role": "Patient"
+            }), 201
+
         else:
             return jsonify({"error": "Invalid role"}), 400
 
-        db.session.commit()
-        return jsonify({"message": f"{data['role']} registered successfully"}), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
@@ -175,6 +194,10 @@ def login():
     email = data.get("email")
     password = data.get("password")
     role = data.get("role")  # Expecting 'Doctor' or 'Patient'
+
+
+    if not email or not password or not role:
+        return jsonify({"error": "Missing email, password, or role"}), 400
 
     if role == "Doctor":
         # Check if the user is a doctor
@@ -198,8 +221,6 @@ def login():
                 "name": patient.name,
                 "email": patient.email,
                 "doctor_id": patient.doctor_id,
-                "disease_name": patient.disease_name,
-                "disease_score": patient.disease_score
             }), 200
 
     return jsonify({"error": "Invalid email, password, or role"}), 401
@@ -230,34 +251,46 @@ def get_patients(doctor_id):
     if not doctor:
         return jsonify({"error": "Doctor not found"}), 404
 
-    patients = doctor.patients
+    # Fetch all analysis results associated with the doctor
+    analysis_results = AnalysisResult.query.filter_by(doctor_id=doctor_id).all()
+
+    # Prepare the response with patient details and their latest analysis result
+    response = []
+    for result in analysis_results:
+        patient = result.patient  # Access the patient via the relationship
+        response.append({
+            "id": patient.id,
+            "name": patient.name,
+            "email": patient.email,
+            "latest_analysis": {
+                "disease_name": result.disease_name,
+                "disease_image": result.disease_image,
+                "disease_score": result.disease_score,
+                "timestamp": result.timestamp
+            }
+        })
+    
+    # print(f"Response: {response}")  # Debug log
+
+    return jsonify(response), 200
+
+@api_bp.route("/patients/<int:patient_id>/analysis", methods=["GET"])
+def get_patient_analysis(patient_id):
+    patient = Patient.query.get(patient_id)
+    if not patient:
+        return jsonify({"error": "Patient not found"}), 404
+
+    analysis_results = AnalysisResult.query.filter_by(patient_id=patient_id).all()
     return jsonify([
         {
-            "id": p.id,
-            "name": p.name,
-            "disease_name": p.disease_name,
-            "disease_image": p.disease_image,
-            "disease_score": p.disease_score
+            "id": result.id,
+            "disease_name": result.disease_name,
+            "disease_image": result.disease_image,
+            "disease_score": result.disease_score,
+            "timestamp": result.timestamp
         }
-        for p in patients
+        for result in analysis_results
     ])
-
-@api_bp.route("/doctors/<int:doctor_id>", methods=["PUT"])
-def update_doctor(doctor_id):
-    data = request.get_json()
-    doctor = Doctor.query.get(doctor_id)
-    if not doctor:
-        return jsonify({"error": "Doctor not found"}), 404
-
-    try:
-        if "specialization" in data:
-            doctor.specialization = data["specialization"]
-
-        db.session.commit()
-        return jsonify({"message": "Doctor details updated successfully"}), 200
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": str(e)}), 500
 
 # PATIENT ENDPOINTS
 @api_bp.route("/patients", methods=["POST"])
@@ -282,40 +315,34 @@ def add_patient():
         db.session.rollback()
         return jsonify({"error": str(e)}), 400
 
-@api_bp.route("/patients/<int:patient_id>", methods=["PUT"])
-def update_patient(patient_id):
-    data = request.get_json()
+@api_bp.route("/patients/<int:patient_id>", methods=["GET"])
+def get_patient(patient_id):
     patient = Patient.query.get(patient_id)
     if not patient:
         return jsonify({"error": "Patient not found"}), 404
 
-    try:
-        if "doctor_id" in data:
-            patient.doctor_id = data["doctor_id"]
-        if "disease_name" in data:
-            patient.disease_name = data["disease_name"]
-        if "disease_image" in data:
-            patient.disease_image = data["disease_image"]
-        if "disease_score" in data:
-            patient.disease_score = data["disease_score"]
+    return jsonify({
+        "id": patient.id,
+        "name": patient.name,
+        "email": patient.email,
+        "doctor_id": patient.doctor_id
+    }), 200
 
-        db.session.commit()
-        return jsonify({"message": "Patient details updated successfully"}), 200
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+@api_bp.route("/doctor/<int:doctor_id>/analysis", methods=["GET"])
+def get_doctor_patient_analysis(doctor_id):
+    doctor = Doctor.query.get(doctor_id)
+    if not doctor:
+        return jsonify({"error": "Doctor not found"}), 404
 
-@api_bp.route("/patients", methods=["GET"])
-def get_all_patients():
-    patients = Patient.query.all()
+    analysis_results = AnalysisResult.query.filter_by(doctor_id=doctor_id).all()
     return jsonify([
         {
-            "id": p.id,
-            "name": p.name,
-            "doctor_id": p.doctor_id,
-            "disease_name": p.disease_name,
-            "disease_image": p.disease_image,
-            "disease_score": p.disease_score
+            "id": result.id,
+            "patient_id": result.patient_id,
+            "disease_name": result.disease_name,
+            "disease_image": result.disease_image,
+            "disease_score": result.disease_score,
+            "timestamp": result.timestamp
         }
-        for p in patients
+        for result in analysis_results
     ])
